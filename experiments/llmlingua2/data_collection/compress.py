@@ -47,6 +47,8 @@ parser.add_argument("--api_key", help="OpenAI API key", required=True)
 parser.add_argument("--api_base", help="OpenAI API base URL", required=True)
 
 args = parser.parse_args()
+os.environ["OPENAI_API_KEY"] = args.api_key
+os.environ["OPENAI_API_BASE"] = args.api_base
 os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
 
 data = json.load(open(args.load_origin_from))
@@ -179,4 +181,5 @@ print(args.save_path, total_time)
 json.dump(
     results, open(args.save_path, "w", encoding="utf8"), indent=4, ensure_ascii=False
 )
+
 
