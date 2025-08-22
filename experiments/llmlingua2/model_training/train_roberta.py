@@ -12,7 +12,7 @@ from torch import cuda
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from transformers import AutoModelForTokenClassification, AutoTokenizer, BitsAndBytesConfig
 from utils import TokenClfDataset
 
 MAX_LEN = 512
@@ -47,6 +47,26 @@ parser.add_argument(
     "--num_epoch", help="number of training epoch", default=10, type=int
 )
 parser.add_argument("--batch_size", type=int, default=10)
+
+# Quantization arguments
+parser.add_argument(
+    "--quantization",
+    help="quantization method",
+    default=None,
+    choices=[None, "8bit", "4bit", "float16"],
+)
+parser.add_argument(
+    "--bnb_4bit_quant_type",
+    help="4-bit quantization type for bitsandbytes",
+    default="nf4",
+    choices=["nf4", "fp4"],
+)
+parser.add_argument(
+    "--bnb_4bit_use_double_quant",
+    help="use double quantization for 4-bit",
+    action="store_true",
+    default=True,
+)
 
 args = parser.parse_args()
 os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
@@ -167,12 +187,53 @@ def test(model, eval_dataloader):
 device = "cuda" if cuda.is_available() else "cpu"
 data = torch.load(args.data_path)
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-model = AutoModelForTokenClassification.from_pretrained(
-    args.model_name, num_labels=2, ignore_mismatched_sizes=True
-)
-model.to(device)
 
+tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+
+# Configure quantization
+quantization_config = None
+torch_dtype = torch.float32  # default
+
+if args.quantization == "8bit":
+    quantization_config = BitsAndBytesConfig(
+        load_in_8bit=True,
+    )
+    print("Loading model with 8-bit quantization")
+elif args.quantization == "4bit":
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type=args.bnb_4bit_quant_type,
+        bnb_4bit_use_double_quant=args.bnb_4bit_use_double_quant,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
+    print(f"Loading model with 4-bit quantization (type: {args.bnb_4bit_quant_type})")
+elif args.quantization == "float16":
+    torch_dtype = torch.float16
+    print("Loading model with float16 precision")
+else:
+    print("Loading model with default precision")
+
+# Load model with optional quantization
+model_kwargs = {
+    "num_labels": 2,
+    "ignore_mismatched_sizes": True,
+    "torch_dtype": torch_dtype,
+}
+
+if quantization_config is not None:
+    model_kwargs["quantization_config"] = quantization_config
+    model_kwargs["device_map"] = "auto"  # Required for quantization
+
+model = AutoModelForTokenClassification.from_pretrained(
+    args.model_name,
+    **model_kwargs
+)
+
+model.to(device)
+# Print memory footprint
+if hasattr(model, 'get_memory_footprint'):
+    print(f"Model memory footprint: {model.get_memory_footprint() / 1e9:.2f} GB")
+    
 assert len(data["origin"]) == len(data["labels"])
 text_label = [(text, label) for text, label in zip(data["origin"], data["labels"])]
 random.shuffle(text_label)
