@@ -43,6 +43,8 @@ parser.add_argument(
 parser.add_argument(
     "--n_target_token", help="number of target tokens", type=int, default=-1
 )
+parser.add_argument("--api_key", help="OpenAI API key", required=True)
+parser.add_argument("--api_base", help="OpenAI API base URL", required=True)
 
 args = parser.parse_args()
 os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
@@ -177,3 +179,4 @@ print(args.save_path, total_time)
 json.dump(
     results, open(args.save_path, "w", encoding="utf8"), indent=4, ensure_ascii=False
 )
+
