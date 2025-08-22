@@ -43,7 +43,7 @@ def query_llm(
     response = None
     while answer is None:
         try:
-            response = model.create(engine=model_name, **request)
+            response = model.create(model=model_name, **request)
             answer = (
                 response["choices"][0]["message"]["content"]
                 if chat_completion
