@@ -63,7 +63,8 @@ class PromptCompressor:
                     "top_p": self.top_p,
                     "max_tokens": n_max_new_token,
                 }
-                response = self.model.create(engine=self.model_name, **request)
+#change engine= to model= for direct openai api instead of azure
+                response = self.model.create(model=self.model_name, **request)
                 if "choices" not in response:
                     print(response)
                 comp = response["choices"][0]["message"]["content"]
