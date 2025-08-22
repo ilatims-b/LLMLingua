@@ -6,6 +6,11 @@ from time import sleep
 import openai
 import tiktoken
 import os
+import json
+from datetime import datetime
+
+MAX_BUDGET = 2.00  # $2.00 limit
+BUDGET_FILE = "usage_tracker.json"
 
 def query_llm(
     prompt,
@@ -55,8 +60,8 @@ def query_llm(
 def load_model_and_tokenizer(model_name_or_path, chat_completion=False):
     openai.api_key = os.getenv("OPENAI_API_KEY", "your_api_key")
     openai.api_base = os.getenv("OPENAI_API_BASE", "your_api_base")
-    openai.api_type = os.getenv("OPENAI_API_TYPE", "azure")
-    openai.api_version = os.getenv("OPENAI_API_VERSION", "2023-05-15")
+    openai.api_type = "azure"
+    openai.api_version = "2023-05-15"
     
     if chat_completion:
         model = openai.ChatCompletion
