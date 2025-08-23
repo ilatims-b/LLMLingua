@@ -7,17 +7,17 @@ import random
 import time
 
 import torch
-#from sklearn.metrics import accuracy_score #this was giving dependencies issues
+# Custom accuracy function to avoid sklearn dependencies
 def accuracy_score(y_true, y_pred):
     if len(y_true) == 0:
         return 0.0
     return sum(t == p for t, p in zip(y_true, y_pred)) / len(y_true)
-    
+
 from torch import cuda
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from transformers import AutoModelForTokenClassification, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 from utils import TokenClfDataset
 
 MAX_LEN = 512
@@ -53,30 +53,17 @@ parser.add_argument(
 )
 parser.add_argument("--batch_size", type=int, default=10)
 
-# Quantization arguments
+# Simplified quantization arguments (removed BitsAndBytesConfig dependency)
 parser.add_argument(
     "--quantization",
     help="quantization method",
     default=None,
-    choices=[None, "8bit", "4bit", "float16"],
-)
-parser.add_argument(
-    "--bnb_4bit_quant_type",
-    help="4-bit quantization type for bitsandbytes",
-    default="nf4",
-    choices=["nf4", "fp4"],
-)
-parser.add_argument(
-    "--bnb_4bit_use_double_quant",
-    help="use double quantization for 4-bit",
-    action="store_true",
-    default=True,
+    choices=[None, "float16"],
 )
 
 args = parser.parse_args()
 os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
 writer = SummaryWriter(log_dir=os.path.dirname(args.save_path).replace("model", "log"))
-
 
 def train(epoch):
     tr_loss, tr_accuracy = 0, 0
@@ -122,7 +109,7 @@ def train(epoch):
                 "Acc/train", acc_step, idx + epoch * len(train_dataloader)
             )
             writer.flush()
-            print(f"Training loss per 100 training steps: {loss_step}")
+            print(f"Training loss per 100 training steps: {loss_step:.4f}")
 
         torch.nn.utils.clip_grad_norm_(
             parameters=model.parameters(), max_norm=MAX_GRAD_NORM
@@ -134,9 +121,8 @@ def train(epoch):
 
     tr_loss = tr_loss / nb_tr_steps
     tr_accuracy = tr_accuracy / nb_tr_steps
-    print(f"Training loss epoch: {tr_loss}")
-    print(f"Training accuracy epoch: {tr_accuracy}")
-
+    print(f"Training loss epoch: {tr_loss:.4f}")
+    print(f"Training accuracy epoch: {tr_accuracy:.4f}")
 
 def test(model, eval_dataloader):
     model.eval()
@@ -179,8 +165,8 @@ def test(model, eval_dataloader):
 
     eval_loss = eval_loss / nb_eval_steps
     eval_accuracy = eval_accuracy / nb_eval_steps
-    print(f"Validation Loss: {eval_loss}")
-    print(f"Validation Accuracy: {eval_accuracy}")
+    print(f"Validation Loss: {eval_loss:.4f}")
+    print(f"Validation Accuracy: {eval_accuracy:.4f}")
 
     writer.add_scalar("Loss/eval", eval_loss, epoch * len(eval_dataloader))
     writer.add_scalar("Acc/eval", eval_accuracy, epoch * len(eval_dataloader))
@@ -188,62 +174,49 @@ def test(model, eval_dataloader):
 
     return eval_accuracy
 
-
+# Main execution
 device = "cuda" if cuda.is_available() else "cpu"
-data = torch.load(args.data_path)
-
+data = torch.load(args.data_path, weights_only=False)  # Fixed torch.load
 
 tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
-# Configure quantization
-quantization_config = None
-torch_dtype = torch.float32  # default
-
-if args.quantization == "8bit":
-    quantization_config = BitsAndBytesConfig(
-        load_in_8bit=True,
-    )
-    print("Loading model with 8-bit quantization")
-elif args.quantization == "4bit":
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type=args.bnb_4bit_quant_type,
-        bnb_4bit_use_double_quant=args.bnb_4bit_use_double_quant,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
-    print(f"Loading model with 4-bit quantization (type: {args.bnb_4bit_quant_type})")
-elif args.quantization == "float16":
+# FIXED: Simplified quantization setup (no BitsAndBytesConfig needed)
+if args.quantization == "float16":
     torch_dtype = torch.float16
     print("Loading model with float16 precision")
 else:
+    torch_dtype = torch.float32
     print("Loading model with default precision")
 
-# Load model with optional quantization
-model_kwargs = {
-    "num_labels": 2,
-    "ignore_mismatched_sizes": True,
-    "torch_dtype": torch_dtype,
-}
-
-if quantization_config is not None:
-    model_kwargs["quantization_config"] = quantization_config
-    model_kwargs["device_map"] = "auto"  # Required for quantization
-
+# Load model with simplified quantization
 model = AutoModelForTokenClassification.from_pretrained(
     args.model_name,
-    **model_kwargs
+    num_labels=2,
+    ignore_mismatched_sizes=True,
+    torch_dtype=torch_dtype,
 )
 
 model.to(device)
-# Print memory footprint
-if hasattr(model, 'get_memory_footprint'):
-    print(f"Model memory footprint: {model.get_memory_footprint() / 1e9:.2f} GB")
-    
+
+# Print model info
+try:
+    if hasattr(model, 'get_memory_footprint'):
+        print(f"Model memory footprint: {model.get_memory_footprint() / 1e9:.2f} GB")
+except:
+    print("Memory footprint info not available")
+
 assert len(data["origin"]) == len(data["labels"])
 text_label = [(text, label) for text, label in zip(data["origin"], data["labels"])]
 random.shuffle(text_label)
-train_data = text_label[: int(len(text_label) * 0.8)]
-val_data = text_label[int(len(text_label) * 0.8) :]
+
+# FIXED: Handle single sample datasets
+if len(text_label) == 1:
+    print("Warning: Only 1 sample detected. Using same sample for train/val.")
+    train_data = text_label
+    val_data = text_label
+else:
+    train_data = text_label[: int(len(text_label) * 0.8)]
+    val_data = text_label[int(len(text_label) * 0.8) :]
 
 train_text = [text for text, label in train_data]
 train_label = [label for text, label in train_data]
@@ -257,40 +230,48 @@ val_dataset = TokenClfDataset(
     val_text, val_label, MAX_LEN, tokenizer=tokenizer, model_name=args.model_name
 )
 
-print(f"len taining set: {len(train_dataset)}, len validation set: {len(val_dataset)}")
-print(train_dataset[0])
+print(f"Training set: {len(train_dataset)}, Validation set: {len(val_dataset)}")
+print("Sample data:", train_dataset[0])
+
+# Show sample tokenization
 for token, label in zip(
     tokenizer.convert_ids_to_tokens(train_dataset[0]["ids"][:30]),
-    train_dataset[0]["targets"][:30],
+    train_dataset["targets"][:30],
 ):
     print("{0:10}  {1}".format(token, label.item()))
-train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 
+train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
+# Test model forward pass
 ids = train_dataset[0]["ids"].unsqueeze(0)
-mask = train_dataset[0]["mask"].unsqueeze(0)
-targets = train_dataset[0]["targets"].unsqueeze(0)
+mask = train_dataset["mask"].unsqueeze(0)
+targets = train_dataset["targets"].unsqueeze(0)
 ids = ids.to(device)
 mask = mask.to(device)
 targets = targets.to(device)
+
 outputs = model(input_ids=ids, attention_mask=mask, labels=targets)
 initial_loss = outputs[0]
-print(initial_loss)
+tr_logits = outputs[6]
 
-tr_logits = outputs[1]
-print(tr_logits.shape)
+print(f"Initial loss: {initial_loss}")
+print(f"Logits shape: {tr_logits.shape}")
 
 optimizer = torch.optim.Adam(params=model.parameters(), lr=args.lr)
-
 best_acc = 0
 
+# Training loop
 for epoch in tqdm(range(args.num_epoch)):
     print(f"Training epoch: {epoch + 1}")
     train(epoch)
     acc = test(model, val_dataloader)
+    
     if acc > best_acc:
         best_acc = acc
         torch.save(model.state_dict(), f"{args.save_path}/state_dict.pth")
         model.save_pretrained(args.save_path)
         tokenizer.save_pretrained(args.save_path)
+        print(f"New best accuracy: {best_acc:.4f} - Model saved!")
+
+print("Training completed!")
