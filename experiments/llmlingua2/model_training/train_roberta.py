@@ -7,7 +7,12 @@ import random
 import time
 
 import torch
-from sklearn.metrics import accuracy_score
+#from sklearn.metrics import accuracy_score #this was giving dependencies issues
+def accuracy_score(y_true, y_pred):
+    if len(y_true) == 0:
+        return 0.0
+    return sum(t == p for t, p in zip(y_true, y_pred)) / len(y_true)
+    
 from torch import cuda
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
