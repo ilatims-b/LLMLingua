@@ -47,8 +47,12 @@ parser.add_argument("--api_key", help="OpenAI API key", required=True)
 #parser.add_argument("--api_base", help="OpenAI API base URL", required=True)
 
 args = parser.parse_args()
-os.environ["OPENAI_API_KEY"] = args.api_key
-#os.environ["OPENAI_API_BASE"] = args.api_base
+# Set environment variable based on compressor type
+if args.compressor == "groq":
+    os.environ["GROQ_API_KEY"] = args.api_key
+else:
+    os.environ["OPENAI_API_KEY"] = args.api_key
+
 os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
 
 data = json.load(open(args.load_origin_from))
@@ -62,6 +66,19 @@ if args.compressor == "gpt4":
     user_prompt = prompts[str(args.prompt_id)]["user_prompt"]
     compressor = PromptCompressor(
         model_name=args.model_name, system_prompt=system_prompt, user_prompt=user_prompt
+    )
+
+elif args.compressor == "groq":
+    from GPT4_compressor import PromptCompressor
+
+    prompts = json.load(open(args.load_prompt_from))
+    system_prompt = prompts[str(args.prompt_id)]["system_prompt"]
+    user_prompt = prompts[str(args.prompt_id)]["user_prompt"]
+    compressor = PromptCompressor(
+        model_name=args.model_name, 
+        system_prompt=system_prompt, 
+        user_prompt=user_prompt,
+        use_groq=True  # New parameter to indicate Groq usage
     )
 elif args.compressor == "llmlingua" or args.compressor == "longllmlingua":
     from llmlingua import PromptCompressor
@@ -139,7 +156,7 @@ for sample in tqdm(data):
         print(f"num chunk: {len(origin)}")
         comp_list = []
         for j, chunk in enumerate(origin):
-            if args.compressor == "gpt4":
+            if args.compressor == "gpt4" or args.compressor=="groq":
                 comp = compressor.compress(chunk, args.n_max_new_token)
             elif args.compressor == "sc":
                 if args.n_target_token > 0:
@@ -181,6 +198,7 @@ print(args.save_path, total_time)
 json.dump(
     results, open(args.save_path, "w", encoding="utf8"), indent=4, ensure_ascii=False
 )
+
 
 
 
