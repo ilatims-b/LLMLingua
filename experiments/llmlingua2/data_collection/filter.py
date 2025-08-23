@@ -25,7 +25,16 @@ res_pt = torch.load(args.load_path, weights_only=False)
 ## filtering
 variation_rate_list = res_pt["variation_rate"]
 print(len(variation_rate_list))
-threshold = np.percentile(variation_rate_list, 90)
+# Handle small datasets
+if len(alignment_gap_list) == 0:
+    threshold = 0.1  # Default threshold
+    print("Warning: No alignment gaps found, using default threshold")
+elif len(alignment_gap_list) == 1:
+    threshold = alignment_gap_list[0] + 0.01  # Slightly higher than the single value
+    print(f"Warning: Only 1 sample, using threshold: {threshold}")
+else:
+    threshold = np.percentile(alignment_gap_list, 90)
+    
 kept, filtered = defaultdict(list), defaultdict(list)
 for labels, origin, comp, retrieval, cr, vr, hr, mr, ag in zip(
     res_pt["labels"],
