@@ -2,7 +2,6 @@
 # Licensed under The MIT License [see LICENSE for details]
 
 from time import sleep
-
 from utils import load_model_and_tokenizer
 
 SLEEP_TIME_SUCCESS = 10
@@ -18,12 +17,12 @@ class PromptCompressor:
         temperature=0.3,
         top_p=1.0,
         n_max_token=32700,
-        use_groq=False,
+        use_groq=False,  # New parameter to indicate Groq usage
     ):
         self.model_name = model_name
         self.temperature = temperature
         self.top_p = top_p
-        self.use_groq=use_groq
+        self.use_groq = use_groq
 
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
@@ -45,6 +44,9 @@ class PromptCompressor:
         if self.system_prompt:
             messages = [{"role": "system", "content": self.system_prompt}]
             len_sys_prompt = len(self.tokenizer.encode(self.system_prompt))
+        else:
+            messages = []
+            
         token_ids = self.tokenizer.encode(prompt)
         if len(token_ids) > (self.n_max_token - n_max_new_token - len_sys_prompt):
             half = int((self.n_max_token - n_max_new_token - len_sys_prompt) / 2) - 1
@@ -70,20 +72,18 @@ class PromptCompressor:
                         stream=False
                     )
                     comp = response.choices[0].message.content
-
-            else:
-    
-                request = {
-                    "messages": messages,
-                    "temperature": self.temperature,
-                    "top_p": self.top_p,
-                    "max_tokens": n_max_new_token,
-                }
-#change engine= to model= for direct openai api instead of azure
-                response = self.model.create(model=self.model_name, **request)
-                if "choices" not in response:
-                    print(response)
-                comp = response["choices"][0]["message"]["content"]
+                else:
+                    # OpenAI API call
+                    request = {
+                        "messages": messages,
+                        "temperature": self.temperature,
+                        "top_p": self.top_p,
+                        "max_tokens": n_max_new_token,
+                    }
+                    response = self.model.create(model=self.model_name, **request)
+                    if "choices" not in response:
+                        print(response)
+                    comp = response["choices"][0]["message"]["content"]
             except Exception as e:
                 print(f"error: {e}")
                 sleep(SLEEP_TIME_FAILED)
