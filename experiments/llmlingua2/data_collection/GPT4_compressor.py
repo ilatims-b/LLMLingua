@@ -18,10 +18,12 @@ class PromptCompressor:
         temperature=0.3,
         top_p=1.0,
         n_max_token=32700,
+        use_groq=False,
     ):
         self.model_name = model_name
         self.temperature = temperature
         self.top_p = top_p
+        self.use_groq=use_groq
 
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
@@ -29,7 +31,7 @@ class PromptCompressor:
         print(self.user_prompt)
 
         self.model, self.tokenizer = load_model_and_tokenizer(
-            self.model_name, chat_completion=True
+            self.model_name, chat_completion=True, use_groq=use_groq
         )
         self.n_max_token = n_max_token
 
@@ -57,6 +59,20 @@ class PromptCompressor:
         comp = None
         while comp is None:
             try:
+                if self.use_groq:
+                    # Groq API call
+                    response = self.model.chat.completions.create(
+                        model=self.model_name,
+                        messages=messages,
+                        temperature=self.temperature,
+                        top_p=self.top_p,
+                        max_tokens=n_max_new_token,
+                        stream=False
+                    )
+                    comp = response.choices[0].message.content
+
+            else:
+    
                 request = {
                     "messages": messages,
                     "temperature": self.temperature,
