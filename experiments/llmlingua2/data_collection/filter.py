@@ -14,7 +14,7 @@ parser.add_argument(
     default="../../../results/meetingbank/gpt-4-32k_comp/annotation_cs512_meetingbank_train_formated.pt",
 )
 parser.add_argument(
-    "--save_path",
+    "--save_path", 
     help="path to save filtered data",
     default="../../../results/meetingbank/gpt-4-32k_comp/annotation_kept_cs512_meetingbank_train_formated.pt",
 )
@@ -25,20 +25,21 @@ res_pt = torch.load(args.load_path, weights_only=False)
 ## filtering
 variation_rate_list = res_pt["variation_rate"]
 print(len(variation_rate_list))
-# Handle small datasets
-if len(alignment_gap_list) == 0:
+
+# FIXED: Use variation_rate_list (not alignment_gap_list) for first threshold
+if len(variation_rate_list) == 0:
     threshold = 0.1  # Default threshold
-    print("Warning: No alignment gaps found, using default threshold")
-elif len(alignment_gap_list) == 1:
-    threshold = alignment_gap_list[0] + 0.01  # Slightly higher than the single value
+    print("Warning: No variation rates found, using default threshold")
+elif len(variation_rate_list) == 1:
+    threshold = variation_rate_list[0] + 0.01
     print(f"Warning: Only 1 sample, using threshold: {threshold}")
 else:
-    threshold = np.percentile(alignment_gap_list, 90)
-    
+    threshold = np.percentile(variation_rate_list, 90)
+ 
 kept, filtered = defaultdict(list), defaultdict(list)
 for labels, origin, comp, retrieval, cr, vr, hr, mr, ag in zip(
     res_pt["labels"],
-    res_pt["origin"],
+    res_pt["origin"], 
     res_pt["comp"],
     res_pt["retrieval"],
     res_pt["comp_rate"],
@@ -68,14 +69,25 @@ for labels, origin, comp, retrieval, cr, vr, hr, mr, ag in zip(
         kept["matching_rate"].append(mr)
         kept["alignment_gap"].append(ag)
 
+# NOW alignment_gap_list is defined
 alignment_gap_list = kept["alignment_gap"]
-threshold = np.percentile(alignment_gap_list, 90)
+
+# FIXED: Add small dataset handling here too
+if len(alignment_gap_list) == 0:
+    threshold = 0.1
+    print("Warning: No alignment gaps found, using default threshold")
+elif len(alignment_gap_list) == 1:
+    threshold = alignment_gap_list[0] + 0.01
+    print(f"Warning: Only 1 alignment gap sample, using threshold: {threshold}")
+else:
+    threshold = np.percentile(alignment_gap_list, 90)
+
 kept2 = defaultdict(list)
 for labels, origin, comp, retrieval, cr, vr, hr, mr, ag in zip(
     kept["labels"],
     kept["origin"],
     kept["comp"],
-    res_pt["retrieval"],
+    kept["retrieval"],  # FIXED: was res_pt["retrieval"], should be kept["retrieval"]
     kept["comp_rate"],
     kept["variation_rate"],
     kept["hitting_rate"],
