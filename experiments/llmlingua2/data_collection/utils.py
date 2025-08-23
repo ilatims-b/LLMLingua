@@ -1,6 +1,5 @@
 # Updated utils.py for Groq Support
 
-```python
 # Copyright (c) 2023 Microsoft
 # Licensed under The MIT License [see LICENSE for details]
 
