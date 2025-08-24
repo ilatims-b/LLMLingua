@@ -236,7 +236,7 @@ print("Sample data:", train_dataset[0])
 # Show sample tokenization
 for token, label in zip(
     tokenizer.convert_ids_to_tokens(train_dataset[0]["ids"][:30]),
-    train_dataset["targets"][:30],
+    train_dataset[0]["targets"][:30],
 ):
     print("{0:10}  {1}".format(token, label.item()))
 
@@ -245,8 +245,8 @@ val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=Fal
 
 # Test model forward pass
 ids = train_dataset[0]["ids"].unsqueeze(0)
-mask = train_dataset["mask"].unsqueeze(0)
-targets = train_dataset["targets"].unsqueeze(0)
+mask = train_dataset[0]["mask"].unsqueeze(0)
+targets = train_dataset[0]["targets"].unsqueeze(0)
 ids = ids.to(device)
 mask = mask.to(device)
 targets = targets.to(device)
