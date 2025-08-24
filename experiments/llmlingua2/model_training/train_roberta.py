@@ -175,7 +175,17 @@ def test(model, eval_dataloader):
     return eval_accuracy
 
 # Main execution
+# GPU compatibility check
 device = "cuda" if cuda.is_available() else "cpu"
+if device == "cuda":
+    try:
+        # Test if CUDA actually works with this GPU
+        test_tensor = torch.tensor([1.0]).to(device)
+        test_result = test_tensor + 1
+        print(f"CUDA test successful on {device}")
+    except Exception as e:
+        print(f"CUDA failed (GPU incompatible), falling back to CPU: {e}")
+        device = "cpu"
 data = torch.load(args.data_path, weights_only=False)  # Fixed torch.load
 
 tokenizer = AutoTokenizer.from_pretrained(args.model_name)
