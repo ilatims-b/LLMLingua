@@ -253,7 +253,7 @@ targets = targets.to(device)
 
 outputs = model(input_ids=ids, attention_mask=mask, labels=targets)
 initial_loss = outputs[0]
-tr_logits = outputs[6]
+tr_logits = outputs[1]
 
 print(f"Initial loss: {initial_loss}")
 print(f"Logits shape: {tr_logits.shape}")
